@@ -31,7 +31,7 @@ const run = async () => {
     const serviceCollection = db.collection("services");
     const bookingCollection = db.collection("bookings");
 
-    // Services API
+    // ---------Services API------------ //
 
     app.get("/services", async (req, res) => {
       const { email, category } = req.query;
@@ -42,9 +42,44 @@ const run = async () => {
       res.send(services);
     });
 
+    // Top rated services
+    app.get("/top-rated-services", async (req, res) => {
+      const services = await serviceCollection
+        .aggregate([
+          { $addFields: { reviewCount: { $size: "$reviews" } } },
+          { $sort: { reviewCount: -1 } },
+          { $limit: 6 },
+        ])
+        .toArray();
+      res.send(services);
+    });
+
+    app.get("/services/:id", async (req, res) => {
+      const query = { _id: new ObjectId(req.params.id) };
+      const singleService = await serviceCollection.findOne(query);
+      res.send(singleService);
+    });
+
     app.post("/services", async (req, res) => {
       const newService = await serviceCollection.insertOne(req.body);
       res.send(newService);
+    });
+
+    // Review API
+    app.post("/services/:id/reviews", async (req, res) => {
+      const query = { _id: new ObjectId(req.params.id) };
+      const review = req.body;
+      review.date = new Date();
+      const addReview = { $push: { reviews: review } };
+      const result = await serviceCollection.updateOne(query, addReview);
+      res.send(result);
+    });
+
+    app.patch("/services/:id", async (req, res) => {
+      const query = { _id: new ObjectId(req.params.id) };
+      const updateService = { $set: req.body };
+      const result = await serviceCollection.updateOne(query, updateService);
+      res.send(result);
     });
 
     app.delete("/services/:id", async (req, res) => {
@@ -53,9 +88,15 @@ const run = async () => {
       res.send(deleteService);
     });
 
+    // ---------Booking API------------ //
 
-
-    // Booking API
+    app.get("/bookings", async (req, res) => {
+      const { email } = req.query;
+      const query = {};
+      if (email) query.email = email;
+      const bookings = await bookingCollection.find(query).toArray();
+      res.send(bookings);
+    });
 
     await client.db("admin").command({ ping: 1 });
     console.log(
