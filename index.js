@@ -22,7 +22,7 @@ const client = new MongoClient(uri, {
     strict: true,
     deprecationErrors: true,
   },
-});
+}); 
 
 const run = async () => {
   try {
@@ -32,7 +32,6 @@ const run = async () => {
     const bookingCollection = db.collection("bookings");
 
 
-    
     // ---------Services API------------ //
 
     app.get("/services", async (req, res) => {
@@ -102,12 +101,20 @@ const run = async () => {
       res.send(bookings);
     });
 
+    app.get("/bookings/:serviceId", async (req, res) => {
+      const query = { serviceId: req.params.serviceId };
+      const result = await bookingCollection.find(query).toArray();
+      res.send(result);
+    });
+
     app.post("/bookings", async (req, res) => {
-      const newBooking = await bookingCollection.insertOne(req.body);
+      const booking = req.body;
+      booking.bookingDate = new Date();
+      const newBooking = await bookingCollection.insertOne(booking);
       res.send(newBooking);
     });
 
-    app.delete("/booking/:id", async (req, res) => {
+    app.delete("/bookings/:id", async (req, res) => {
       const query = { _id: new ObjectId(req.params.id) };
       const result = await bookingCollection.deleteOne(query);
       res.send(result);
