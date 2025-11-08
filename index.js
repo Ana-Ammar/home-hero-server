@@ -31,6 +31,8 @@ const run = async () => {
     const serviceCollection = db.collection("services");
     const bookingCollection = db.collection("bookings");
 
+
+    
     // ---------Services API------------ //
 
     app.get("/services", async (req, res) => {
@@ -88,6 +90,8 @@ const run = async () => {
       res.send(deleteService);
     });
 
+
+
     // ---------Booking API------------ //
 
     app.get("/bookings", async (req, res) => {
@@ -97,6 +101,19 @@ const run = async () => {
       const bookings = await bookingCollection.find(query).toArray();
       res.send(bookings);
     });
+
+    app.post("/bookings", async (req, res) => {
+      const newBooking = await bookingCollection.insertOne(req.body);
+      res.send(newBooking);
+    });
+
+    app.delete("/booking/:id", async (req, res) => {
+      const query = { _id: new ObjectId(req.params.id) };
+      const result = await bookingCollection.deleteOne(query);
+      res.send(result);
+    });
+
+
 
     await client.db("admin").command({ ping: 1 });
     console.log(
