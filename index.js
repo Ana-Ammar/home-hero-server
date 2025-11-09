@@ -22,7 +22,7 @@ const client = new MongoClient(uri, {
     strict: true,
     deprecationErrors: true,
   },
-}); 
+});
 
 const run = async () => {
   try {
@@ -31,15 +31,20 @@ const run = async () => {
     const serviceCollection = db.collection("services");
     const bookingCollection = db.collection("bookings");
 
-
     // ---------Services API------------ //
 
     app.get("/services", async (req, res) => {
-      const { email, category } = req.query;
+      const { email, category, min, max } = req.query;
       const query = {};
       if (email) query.email = email;
-      if (category) query.category = category;
-      const services = await serviceCollection.find(query).toArray();
+      if (category) query.category = category
+      if (min && max) query.price = { $gte: parseInt(min), $lte: parseInt(max) };
+      else if (min) query.price = { $gte: parseInt(min) };
+      else if (max) query.price = { $lte: parseInt(max) };
+      const services = await serviceCollection
+        .find(query)
+        .sort({ price: 1 })
+        .toArray();
       res.send(services);
     });
 
@@ -51,6 +56,7 @@ const run = async () => {
           { $sort: { reviewCount: -1 } },
           { $limit: 6 },
         ])
+        .sort({ price: 1 })
         .toArray();
       res.send(services);
     });
@@ -89,8 +95,6 @@ const run = async () => {
       res.send(deleteService);
     });
 
-
-
     // ---------Booking API------------ //
 
     app.get("/bookings", async (req, res) => {
@@ -119,8 +123,7 @@ const run = async () => {
       const result = await bookingCollection.deleteOne(query);
       res.send(result);
     });
-
-
+    
 
     await client.db("admin").command({ ping: 1 });
     console.log(
