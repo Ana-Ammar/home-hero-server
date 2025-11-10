@@ -2,12 +2,34 @@ const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const admin = require("firebase-admin");
 const app = express();
 const port = process.env.PORT || 5165;
+const serviceAccount = require("./firebase-adminsdk-token-key.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+const verifyFirebaseToken = async (req, res, next) => {
+  const authorization = req.headers.authorization;
+  if (!authorization) {
+    return res.status(401).send({ message: "unauthorizes access" });
+  }
+  const token = authorization.split(" ")[1];
+  try {
+    const decoded = await admin.auth().verifyIdToken(token);
+    req.token_email = decoded.email;
+    console.log(decoded.email);
+    next();
+  } catch (error) {
+    return res.status(401).send({ message: "unauthorizes access" });
+  }
+};
 
 app.get("/", (req, res) => {
   res.send("home hero server is running now");
@@ -34,11 +56,11 @@ const run = async () => {
     // ---------Services API------------ //
 
     app.get("/services", async (req, res) => {
-      const { email, category, min, max } = req.query;
+      const { category, min, max } = req.query;
       const query = {};
-      if (email) query.email = email;
-      if (category) query.category = category
-      if (min && max) query.price = { $gte: parseInt(min), $lte: parseInt(max) };
+      if (category) query.category = category;
+      if (min && max)
+        query.price = { $gte: parseInt(min), $lte: parseInt(max) };
       else if (min) query.price = { $gte: parseInt(min) };
       else if (max) query.price = { $lte: parseInt(max) };
       const services = await serviceCollection
@@ -61,19 +83,30 @@ const run = async () => {
       res.send(services);
     });
 
-    app.get("/services/:id", async (req, res) => {
+    // Secure APIs
+
+    app.get("/my-services", verifyFirebaseToken, async (req, res) => {
+      const query = { email: req.query.email };
+      const services = await serviceCollection
+        .find(query)
+        .sort({ price: 1 })
+        .toArray();
+      res.send(services);
+    });
+
+    app.get("/services/:id", verifyFirebaseToken, async (req, res) => {
       const query = { _id: new ObjectId(req.params.id) };
       const singleService = await serviceCollection.findOne(query);
       res.send(singleService);
     });
 
-    app.post("/services", async (req, res) => {
+    app.post("/services", verifyFirebaseToken, async (req, res) => {
       const newService = await serviceCollection.insertOne(req.body);
       res.send(newService);
     });
 
     // Review API
-    app.post("/services/:id/reviews", async (req, res) => {
+    app.post("/services/:id/reviews", verifyFirebaseToken, async (req, res) => {
       const query = { _id: new ObjectId(req.params.id) };
       const review = req.body;
       review.date = new Date();
@@ -82,14 +115,14 @@ const run = async () => {
       res.send(result);
     });
 
-    app.patch("/services/:id", async (req, res) => {
+    app.patch("/services/:id", verifyFirebaseToken, async (req, res) => {
       const query = { _id: new ObjectId(req.params.id) };
       const updateService = { $set: req.body };
       const result = await serviceCollection.updateOne(query, updateService);
       res.send(result);
     });
 
-    app.delete("/services/:id", async (req, res) => {
+    app.delete("/services/:id", verifyFirebaseToken, async (req, res) => {
       const query = { _id: new ObjectId(req.params.id) };
       const deleteService = await serviceCollection.deleteOne(query);
       res.send(deleteService);
@@ -97,7 +130,7 @@ const run = async () => {
 
     // ---------Booking API------------ //
 
-    app.get("/bookings", async (req, res) => {
+    app.get("/bookings", verifyFirebaseToken, async (req, res) => {
       const { email } = req.query;
       const query = {};
       if (email) query.email = email;
@@ -111,19 +144,18 @@ const run = async () => {
       res.send(result);
     });
 
-    app.post("/bookings", async (req, res) => {
+    app.post("/bookings", verifyFirebaseToken, async (req, res) => {
       const booking = req.body;
       booking.bookingDate = new Date();
       const newBooking = await bookingCollection.insertOne(booking);
       res.send(newBooking);
     });
 
-    app.delete("/bookings/:id", async (req, res) => {
+    app.delete("/bookings/:id", verifyFirebaseToken, async (req, res) => {
       const query = { _id: new ObjectId(req.params.id) };
       const result = await bookingCollection.deleteOne(query);
       res.send(result);
     });
-    
 
     await client.db("admin").command({ ping: 1 });
     console.log(
