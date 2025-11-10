@@ -24,7 +24,6 @@ const verifyFirebaseToken = async (req, res, next) => {
   try {
     const decoded = await admin.auth().verifyIdToken(token);
     req.token_email = decoded.email;
-    console.log(decoded.email);
     next();
   } catch (error) {
     return res.status(401).send({ message: "unauthorizes access" });
@@ -53,7 +52,7 @@ const run = async () => {
     const serviceCollection = db.collection("services");
     const bookingCollection = db.collection("bookings");
 
-    // ---------Services API------------ //
+    // ---------Services   API------------ //
 
     app.get("/services", async (req, res) => {
       const { category, min, max } = req.query;
@@ -75,7 +74,7 @@ const run = async () => {
       const services = await serviceCollection
         .aggregate([
           { $addFields: { reviewCount: { $size: "$reviews" } } },
-          { $sort: { reviewCount: -1 } },
+          { $sort: { reviewCount: 1 } },
           { $limit: 6 },
         ])
         .sort({ price: 1 })
@@ -130,23 +129,25 @@ const run = async () => {
 
     // ---------Booking API------------ //
 
-    app.get("/bookings", verifyFirebaseToken, async (req, res) => {
+    app.get("/my-bookings", verifyFirebaseToken, async (req, res) => {
       const { email } = req.query;
-      const query = {};
-      if (email) query.email = email;
+      const query = { userEmail: email };
       const bookings = await bookingCollection.find(query).toArray();
-      res.send(bookings);
-    });
-
-    app.get("/bookings/:serviceId", async (req, res) => {
-      const query = { serviceId: req.params.serviceId };
-      const result = await bookingCollection.find(query).toArray();
-      res.send(result);
+      const bookingDetails = await Promise.all(bookings.map(async(booking) => {
+        const service = await serviceCollection.findOne({_id: new ObjectId(booking.serviceId)})
+        return {
+          ...booking,
+          service_name : service.service_name,
+          category : service.category,
+          provider_name: service.provider_name,
+          email : service.email
+        }
+      }))
+      res.send(bookingDetails);
     });
 
     app.post("/bookings", verifyFirebaseToken, async (req, res) => {
       const booking = req.body;
-      booking.bookingDate = new Date();
       const newBooking = await bookingCollection.insertOne(booking);
       res.send(newBooking);
     });
