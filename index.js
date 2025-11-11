@@ -55,9 +55,11 @@ const run = async () => {
     // ---------Services   API------------ //
 
     app.get("/services", async (req, res) => {
-      const { category, min, max } = req.query;
+      const { search, min, max } = req.query;
       const query = {};
-      if (category) query.category = category;
+      if (search) {
+        query.service_name = {$regex: search, $options: "i"}
+      };
       if (min && max)
         query.price = { $gte: parseInt(min), $lte: parseInt(max) };
       else if (min) query.price = { $gte: parseInt(min) };
@@ -65,7 +67,7 @@ const run = async () => {
       const services = await serviceCollection
         .find(query)
         .sort({ price: 1 })
-        .toArray();
+        .toArray(); 
       res.send(services);
     });
 
