@@ -58,8 +58,8 @@ const run = async () => {
       const { search, min, max } = req.query;
       const query = {};
       if (search) {
-        query.service_name = {$regex: search, $options: "i"}
-      };
+        query.service_name = { $regex: search, $options: "i" };
+      }
       if (min && max)
         query.price = { $gte: parseInt(min), $lte: parseInt(max) };
       else if (min) query.price = { $gte: parseInt(min) };
@@ -67,7 +67,7 @@ const run = async () => {
       const services = await serviceCollection
         .find(query)
         .sort({ price: 1 })
-        .toArray(); 
+        .toArray();
       res.send(services);
     });
 
@@ -76,7 +76,7 @@ const run = async () => {
       const services = await serviceCollection
         .aggregate([
           { $addFields: { reviewCount: { $size: "$reviews" } } },
-          { $sort: { reviewCount: 1 } },
+          { $sort: { reviewCount: -1 } },
           { $limit: 6 },
         ])
         .sort({ price: 1 })
@@ -88,6 +88,9 @@ const run = async () => {
 
     app.get("/my-services", verifyFirebaseToken, async (req, res) => {
       const query = { email: req.query.email };
+      if(query.email !== req.token_email) {
+        return res.status(401).send({message: 'unauthorized access'})
+      } 
       const services = await serviceCollection
         .find(query)
         .sort({ price: 1 })
@@ -102,6 +105,7 @@ const run = async () => {
     });
 
     app.post("/services", verifyFirebaseToken, async (req, res) => {
+      req.body.reviews = []
       const newService = await serviceCollection.insertOne(req.body);
       res.send(newService);
     });
@@ -134,18 +138,35 @@ const run = async () => {
     app.get("/my-bookings", verifyFirebaseToken, async (req, res) => {
       const { email } = req.query;
       const query = { userEmail: email };
+      if(query.userEmail !== req.token_email) {
+        return res.status(401).send({message: 'unauthorized access'})
+      }
       const bookings = await bookingCollection.find(query).toArray();
-      const bookingDetails = await Promise.all(bookings.map(async(booking) => {
-        const service = await serviceCollection.findOne({_id: new ObjectId(booking.serviceId)})
-        return {
-          ...booking,
-          service_name : service.service_name,
-          category : service.category,
-          provider_name: service.provider_name,
-          email : service.email
-        }
-      }))
+      const bookingDetails = await Promise.all(
+        bookings.map(async (booking) => {
+          const service = await serviceCollection.findOne({
+            _id: new ObjectId(booking.serviceId),
+          });
+          return {
+            ...booking,
+            service_name: service.service_name,
+            category: service.category,
+            provider_name: service.provider_name,
+            email: service.email,
+          };
+        })
+      );
       res.send(bookingDetails);
+    });
+
+    app.get("/total-service-booking", verifyFirebaseToken, async (req, res) => {
+      const { providerEmail } = req.query;
+      const query = { providerEmail: providerEmail}
+      if(query.providerEmail !== req.token_email) {
+        return res.status(401).send({message: 'unauthorized access'})
+      }
+      const providerBooking = await bookingCollection.find(query).toArray()
+      res.send(providerBooking)
     });
 
     app.post("/bookings", verifyFirebaseToken, async (req, res) => {
