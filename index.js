@@ -50,7 +50,7 @@ const client = new MongoClient(uri, {
 
 const run = async () => {
   try {
-    await client.connect();
+    // await client.connect();
     const db = client.db("home_hero");
     const serviceCollection = db.collection("services");
     const bookingCollection = db.collection("bookings");
@@ -82,7 +82,6 @@ const run = async () => {
           { $sort: { reviewCount: -1 } },
           { $limit: 6 },
         ])
-        .sort({ price: 1 })
         .toArray();
       res.send(services);
     });
